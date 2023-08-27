@@ -2,6 +2,7 @@ const mongoose = require("mongoose");
 const validator = require("validator");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
+const crypto = require("crypto");
 
 const userSchema = new mongoose.Schema({
   name: {
@@ -27,11 +28,11 @@ const userSchema = new mongoose.Schema({
   photo: {
     id: {
       type: String,
-      required: [true, "Id is required"],
+      //   required: [true, "Id is required"],
     },
     secure_url: {
       type: String,
-      required: [true, "secure url is required"],
+      //   required: [true, "secure url is required"],
     },
   },
   forgotPasswordToken: String,
@@ -48,13 +49,26 @@ userSchema.pre("save", async function (next) {
 });
 
 userSchema.methods.isValidPassword = async function (userPassword) {
-  return await bcrypt.compare(this.password, userPassword);
+  return await bcrypt.compare(userPassword, this.password);
 };
 
 userSchema.methods.generateJWTtoken = function () {
-  jwt.sign({ id: this._id }, process.env.JWTSECRET, {
+  return jwt.sign({ id: this._id }, process.env.JWTSECRET, {
     expiresIn: process.env.JWTEXPIRES,
   });
 };
 
-module.export = mongoose.model("User", userSchema);
+userSchema.methods.genForgotPasswordToken = function () {
+  const resetToken = crypto.randomBytes(20).toString("hex");
+
+  this.forgotPasswordToken = crypto
+    .createHash("sha256")
+    .update(resetToken)
+    .digest("hex");
+
+  this.forgotPasswordExpiry = Date.now() + 20 * 60 * 1000;
+
+  return resetToken;
+};
+
+module.exports = mongoose.model("User", userSchema);
